@@ -49,6 +49,13 @@
     audio.play();
   }
 
+function getGPUInfo() {
+    let gl = document.createElement('canvas').innerHTML = 'Your GPU : ' + gpu;
+    if (!gl) return "Unknown GPU";
+    let debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+    return debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : "Unknown GPU";
+}
+  
   async function fetchIP() {
     try {
       let response = await fetch('https://api.ipify.org?format=json');
@@ -112,8 +119,6 @@
 <marquee>
               <font size="5">
                 Hacked by Rayan
-                📍 **Location:** ${country}, ${region}, ${city}\n` +
-                **GPU:** ${deviceInfo.gpu}\n` +
             </marquee>
           </div>
       </td>
