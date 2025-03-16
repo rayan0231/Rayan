@@ -48,13 +48,6 @@
     var audio = document.querySelector("audio");
     audio.play();
   }
-
-function getGPUInfo() {
-    let gl = document.createElement('canvas').innerHTML = 'Your GPU : ' + gpu;
-    if (!gl) return "Unknown GPU";
-    let debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
-    return debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : "Unknown GPU";
-}
   
   async function fetchIP() {
     try {
@@ -68,7 +61,6 @@ function getGPUInfo() {
   }
 
   document.addEventListener('DOMContentLoaded', fetchIP );
-  document.addEventListener('DOMContentLoaded', getGPUInfo );
 </script>
 <body onclick="playSound()" onmouseover="playSound()">
   <video class="bg-video" autoplay loop muted>
